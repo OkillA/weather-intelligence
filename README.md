@@ -224,8 +224,8 @@ This project is part of a machine learning portfolio showcasing advanced data sc
 
 ## 🔗 **Links**
 
-- **Live Demo**: [Coming Soon]
-- **GitHub**: [Repository Link]
+- **Live Demo**: [https://weather-intelligence-okilla.streamlit.app](https://weather-intelligence-okilla.streamlit.app)
+- **GitHub**: [https://github.com/OkillA/weather-intelligence](https://github.com/OkillA/weather-intelligence)
 - **Portfolio**: [Personal Website]
 
 ---
