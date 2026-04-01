@@ -1,15 +1,16 @@
 import requests
-import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import time
-import json
 import os
+import logging
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 class WeatherDataCollector:
     """
@@ -88,19 +89,19 @@ class WeatherDataCollector:
             cache_key = f"current_{city}"
             cached_data = self._get_from_cache(cache_key)
             if cached_data:
-                print(f"📋 Using cached data for {city}")
+                logger.debug("Using cached data for %s", city)
                 return cached_data
             
             if not self.api_key:
-                print("⚠️ No API key found, using mock data")
+                logger.warning("No API key found, using mock data")
                 return self._get_mock_weather(city)
             
             city_info = self.cities.get(city)
             if not city_info:
-                print(f"❌ City {city} not found")
+                logger.warning("City %s not found, using mock data", city)
                 return self._get_mock_weather(city)
             
-            print(f"🌍 Fetching live weather for {city}...")
+            logger.info("Fetching live weather for %s", city)
             self._rate_limit()
             
             url = f"{self.base_url}/weather"
@@ -117,14 +118,14 @@ class WeatherDataCollector:
                 data = response.json()
                 weather_data = self._parse_current_weather(data, city)
                 self._save_to_cache(cache_key, weather_data)
-                print(f"✅ Successfully fetched weather for {city}")
+                logger.info("Successfully fetched weather for %s", city)
                 return weather_data
             else:
-                print(f"⚠️ API error ({response.status_code}), using mock data for {city}")
+                logger.warning("API error (%s), using mock data for %s", response.status_code, city)
                 return self._get_mock_weather(city)
                 
         except Exception as e:
-            print(f"❌ Error fetching weather for {city}: {e}")
+            logger.error("Error fetching weather for %s: %s", city, e)
             return self._get_mock_weather(city)
     
     def _parse_current_weather(self, data: Dict, city: str) -> Dict:
@@ -154,18 +155,18 @@ class WeatherDataCollector:
             cache_key = f"forecast_{city}_{days}"
             cached_data = self._get_from_cache(cache_key)
             if cached_data:
-                print(f"📋 Using cached forecast for {city}")
+                logger.debug("Using cached forecast for %s", city)
                 return cached_data
             
             if not self.api_key:
-                print("⚠️ No API key found, using mock forecast")
+                logger.warning("No API key found, using mock forecast")
                 return self._get_mock_forecast(city, days)
             
             city_info = self.cities.get(city)
             if not city_info:
                 return self._get_mock_forecast(city, days)
             
-            print(f"🔮 Fetching {days}-day forecast for {city}...")
+            logger.info("Fetching %d-day forecast for %s", days, city)
             self._rate_limit()
             
             url = f"{self.base_url}/forecast"
@@ -183,14 +184,14 @@ class WeatherDataCollector:
                 data = response.json()
                 forecast_data = self._parse_forecast(data, city)
                 self._save_to_cache(cache_key, forecast_data)
-                print(f"✅ Successfully fetched forecast for {city}")
+                logger.info("Successfully fetched forecast for %s", city)
                 return forecast_data
             else:
-                print(f"⚠️ Forecast API error ({response.status_code}), using mock data")
+                logger.warning("Forecast API error (%s), using mock data", response.status_code)
                 return self._get_mock_forecast(city, days)
                 
         except Exception as e:
-            print(f"❌ Error fetching forecast for {city}: {e}")
+            logger.error("Error fetching forecast for %s: %s", city, e)
             return self._get_mock_forecast(city, days)
     
     def _parse_forecast(self, data: Dict, city: str) -> List[Dict]:
