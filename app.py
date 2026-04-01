@@ -73,9 +73,32 @@ def get_meta(condition: str) -> dict:
     return _CONDITION_META.get(condition, _DEFAULT_META)
 
 def wind_dir_label(deg: float) -> str:
-    dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
-            "S","SSW","SW","WSW","W","WNW","NW","NNW"]
-    return dirs[round(deg / 22.5) % 16]
+    dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+    normalized = deg % 360
+    index = int((normalized / 22.5) + 0.5) % 16
+    return dirs[index]
+
+def weather_persona(condition: str) -> tuple[str, str]:
+    personas = {
+        "Clear": ("Golden-hour energy", "Open skies, sharp light, and a city that feels ready to move."),
+        "Clouds": ("Soft-focus mood", "Muted skies and cinematic light give everything a slower rhythm."),
+        "Rain": ("Neon rain mode", "Reflective streets, glossy rooftops, and weather with a little drama."),
+        "Drizzle": ("Low-key shimmer", "A light atmospheric wash that makes the whole skyline feel alive."),
+        "Thunderstorm": ("Electric tension", "Heavy air, restless clouds, and a sky that steals the scene."),
+        "Snow": ("Quiet spectacle", "Everything softens into a brighter, calmer, almost storybook world."),
+        "Mist": ("Dream sequence", "Edges blur, lights bloom, and the city turns mysterious."),
+        "Fog": ("Hidden-city vibe", "The skyline slips back and the weather becomes the main character."),
+        "Haze": ("Sun-washed haze", "Warm, dusty light gives the whole day a surreal, suspended feeling."),
+    }
+    return personas.get(condition, ("Atmospheric shift", "The weather is setting a strong tone across the city today."))
+
+def forecast_icon(condition: str) -> str:
+    return get_meta(condition).get("icon", "🌡️")
+
+def dominant_condition(series: pd.Series) -> str:
+    counts = series.value_counts()
+    return counts.index[0] if not counts.empty else "Unknown"
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -84,6 +107,9 @@ st.markdown("""
 html, body, [class*="css"] { font-family: 'Inter','Segoe UI',system-ui,sans-serif; }
 .main .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1280px; }
 #MainMenu, footer { visibility: hidden; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,230,118,.35); } 50% { opacity: .45; box-shadow: 0 0 0 10px rgba(0,230,118,0); } }
+@keyframes drift { 0% { transform: translate3d(0,0,0); } 50% { transform: translate3d(20px,-12px,0); } 100% { transform: translate3d(0,0,0); } }
+@keyframes subtle-pulse { 0%, 100% { opacity: .85; } 50% { opacity: 1; } }
 
 /* === SIDEBAR === */
 [data-testid="stSidebar"] {
@@ -101,6 +127,17 @@ html, body, [class*="css"] { font-family: 'Inter','Segoe UI',system-ui,sans-seri
     overflow: hidden;
     box-shadow: 0 24px 80px rgba(0,0,0,0.55);
 }
+.weather-hero::before {
+    content: '';
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    right: -80px;
+    top: -120px;
+    background: radial-gradient(circle, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.06) 38%, rgba(255,255,255,0) 72%);
+    filter: blur(10px);
+    animation: drift 9s ease-in-out infinite;
+}
 .weather-hero::after {
     content: '';
     position: absolute;
@@ -108,6 +145,21 @@ html, body, [class*="css"] { font-family: 'Inter','Segoe UI',system-ui,sans-seri
     background: rgba(0,0,0,0.12);
     border-radius: inherit;
     pointer-events: none;
+}
+.weather-hero.hero-rain::before,
+.weather-hero.hero-drizzle::before {
+    background:
+        radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 32%, rgba(255,255,255,0) 70%),
+        repeating-linear-gradient(110deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 2px, rgba(255,255,255,0) 2px, rgba(255,255,255,0) 16px);
+}
+.weather-hero.hero-thunderstorm::before {
+    background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 38%, rgba(255,255,255,0) 72%);
+    animation: subtle-pulse 2.8s ease-in-out infinite;
+}
+.weather-hero.hero-clouds::before,
+.weather-hero.hero-fog::before,
+.weather-hero.hero-mist::before {
+    background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.07) 36%, rgba(255,255,255,0) 72%);
 }
 .hero-content {
     position: relative; z-index: 1;
@@ -139,6 +191,27 @@ html, body, [class*="css"] { font-family: 'Inter','Segoe UI',system-ui,sans-seri
     text-transform: uppercase; letter-spacing: 0.1em;
     margin-top: 0.5rem;
 }
+.hero-mood {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.95);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.hero-tagline {
+    margin-top: 1rem;
+    max-width: 540px;
+    color: rgba(255,255,255,0.88);
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
 .stat-pills { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 1.4rem; }
 .stat-pill {
     background: rgba(255,255,255,0.16);
@@ -150,13 +223,83 @@ html, body, [class*="css"] { font-family: 'Inter','Segoe UI',system-ui,sans-seri
     white-space: nowrap;
     display: inline-flex; align-items: center; gap: 0.3rem;
     border: 1px solid rgba(255,255,255,0.12);
+    transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
 }
+.stat-pill:hover { background: rgba(255,255,255,0.24); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.18); }
 
 /* === SECTION HEADING === */
 .section-heading {
     font-size: 0.68rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.12em;
     color: #8b949e; margin: 0 0 0.7rem;
+}
+.status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.36rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    color: #8b949e;
+    font-size: 0.78rem;
+}
+.status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #00e676;
+    animation: pulse-dot 2.5s ease-in-out infinite;
+}
+.story-card {
+    border-radius: 18px;
+    padding: 1rem 1.1rem;
+    min-height: 152px;
+    background: linear-gradient(180deg, rgba(79,172,254,0.12), rgba(255,255,255,0.03));
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.story-card .story-kicker {
+    margin: 0 0 0.5rem;
+    color: #8b949e;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.story-card .story-title {
+    margin: 0 0 0.5rem;
+    color: #e6edf3;
+    font-size: 1rem;
+    font-weight: 700;
+}
+.story-card .story-copy {
+    margin: 0;
+    color: #b8c0cc;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+.timeline-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+}
+.timeline-card {
+    border-radius: 16px;
+    padding: 0.95rem 0.9rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.timeline-time { font-size: 0.76rem; color: #8b949e; }
+.timeline-icon { font-size: 1.8rem; line-height: 1.2; margin: 0.2rem 0; display: block; }
+.timeline-temp { font-size: 1rem; font-weight: 700; color: #e6edf3; }
+.timeline-desc { font-size: 0.78rem; color: #9ca7b5; text-transform: capitalize; }
+@media (max-width: 1100px) {
+    .timeline-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+    .timeline-grid { grid-template-columns: 1fr; }
+    .hero-left h1 { font-size: 3.4rem; }
+    .hero-icon { font-size: 5rem; }
 }
 
 /* === ALERT ITEMS === */
@@ -187,9 +330,11 @@ html, body, [class*="css"] { font-family: 'Inter','Segoe UI',system-ui,sans-seri
     padding: 0.42rem 0;
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
+.rank-item.rank-podium { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 0.52rem 0.65rem; margin-bottom: 0.35rem; border-bottom: none; }
 .rank-item:last-child { border-bottom: none; }
 .rank-item .ri-city { font-size: 0.83rem; color: #c9d1d9; }
 .rank-item .ri-val  { font-size: 0.86rem; font-weight: 600; }
+.ri-badge { margin-right: 0.45rem; }
 
 /* === STREAMLIT OVERRIDES === */
 [data-testid="stMetric"] {
@@ -290,8 +435,9 @@ with st.spinner("Loading global data…"):
 # HEADER
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown(
-    f'<p style="color:#484f58;font-size:0.78rem;text-align:right;margin-bottom:0.5rem;">'
-    f'Updated {datetime.now().strftime("%B %d, %Y · %H:%M")}</p>',
+    f'<div style="display:flex;justify-content:flex-end;margin-bottom:0.75rem;">'
+    f'<span class="status-chip"><span class="status-dot"></span>'
+    f'Live atmosphere · Updated {datetime.now().strftime("%B %d, %Y · %H:%M")}</span></div>',
     unsafe_allow_html=True,
 )
 
@@ -302,14 +448,18 @@ st.markdown(
 if current_weather:
     meta = get_meta(current_weather["weather_main"])
     wdir = wind_dir_label(current_weather.get("wind_direction", 0))
+    mood_title, mood_copy = weather_persona(current_weather["weather_main"])
+    hero_class = f'hero-{current_weather["weather_main"].lower().replace(" ", "-")}'
     st.markdown(
         f"""
-        <div class="weather-hero" style="background:{meta['gradient']};">
+        <div class="weather-hero {hero_class}" style="background:{meta['gradient']};">
           <div class="hero-content">
             <div class="hero-left">
               <p class="hero-city">📍 {selected_city}</p>
+              <span class="hero-mood">✦ {mood_title}</span>
               <h1>{fmt_temp(current_weather["temperature"])}</h1>
               <p class="hero-desc">{current_weather["weather_description"].title()}</p>
+              <p class="hero-tagline">{mood_copy}</p>
               <div class="stat-pills">
                 <span class="stat-pill">🤔 Feels {fmt_temp(current_weather["feels_like"])}</span>
                 <span class="stat-pill">💧 {current_weather["humidity"]}% humidity</span>
@@ -345,6 +495,49 @@ else:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# STORY PANELS
+# ─────────────────────────────────────────────────────────────────────────────
+if current_weather:
+    story_col1, story_col2 = st.columns([1.15, 0.85])
+    with story_col1:
+        st.markdown(
+            f"""
+            <div class="story-card">
+              <p class="story-kicker">Scene Setting</p>
+              <h3 class="story-title">The atmosphere in {selected_city} is pure {mood_title.lower()}.</h3>
+              <p class="story-copy">
+                With {current_weather["cloudiness"]}% cloud cover, {current_weather["humidity"]}% humidity,
+                and visibility stretching {current_weather["visibility"]:.0f} km, the atmosphere is doing more
+                than reporting conditions — it is shaping the whole character of the city right now.
+              </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with story_col2:
+        temp_gap = current_weather["temperature"] - current_weather["feels_like"]
+        if temp_gap > 1:
+            thermal_note = "it feels cooler than the actual temperature"
+        elif abs(temp_gap) <= 1:
+            thermal_note = "the air feels almost exactly like the reading suggests"
+        else:
+            thermal_note = "it feels warmer than the actual temperature"
+        st.markdown(
+            f"""
+            <div class="story-card">
+              <p class="story-kicker">Local Read</p>
+              <h3 class="story-title">In {selected_city}, {thermal_note}.</h3>
+              <p class="story-copy">
+                Pressure is holding at {current_weather["pressure"]} hPa while wind pushes from the {wdir}.
+                It is the kind of weather that gives the skyline a distinct personality instead of just a forecast.
+              </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # FORECAST
 # ─────────────────────────────────────────────────────────────────────────────
 if forecast_data:
@@ -354,6 +547,21 @@ if forecast_data:
     df["date"] = pd.to_datetime(df["datetime"])
     df["temp_d"] = df["temperature"].apply(display_temp)
     df["feels_d"] = df["feels_like"].apply(display_temp)
+    next_beats = df.head(4).to_dict("records")
+
+    timeline_html = "".join(
+        (
+            f'<div class="timeline-card">'
+            f'<span class="timeline-time">{item["date"].strftime("%a · %H:%M")}</span>'
+            f'<span class="timeline-icon">{forecast_icon(item["weather_main"])}</span>'
+            f'<div class="timeline-temp">{fmt_temp(item["temperature"])}</div>'
+            f'<div class="timeline-desc">{item["weather_description"]}</div>'
+            f'</div>'
+        )
+        for item in next_beats
+    )
+    st.markdown('<p class="section-heading">⏱️ Next atmospheric beats</p>', unsafe_allow_html=True)
+    st.markdown(f'<div class="timeline-grid">{timeline_html}</div>', unsafe_allow_html=True)
 
     _chart_layout = dict(
         template="plotly_dark",
@@ -409,6 +617,7 @@ if forecast_data:
         ))
         fig_p.update_layout(
             height=320,
+            **_chart_layout,
             yaxis=dict(
                 title="Precipitation Probability (%)", range=[0, 100],
                 gridcolor="rgba(255,255,255,0.05)",
@@ -417,7 +626,6 @@ if forecast_data:
                 title="Humidity (%)", overlaying="y", side="right",
                 range=[0, 100], gridcolor="rgba(0,0,0,0)",
             ),
-            **{k: v for k, v in _chart_layout.items() if k != "yaxis"},
         )
         st.plotly_chart(fig_p, use_container_width=True)
 
@@ -444,10 +652,9 @@ if forecast_data:
             avg_humidity=("humidity", "mean"),
             max_rain=("precipitation_prob", "max"),
             avg_wind=("wind_speed", "mean"),
-            condition=("weather_main",
-                       lambda x: x.value_counts().index[0] if not x.value_counts().empty else "Unknown"),
+            condition=("weather_main", dominant_condition),
         ).round(1)
-        daily.index = [f"{d.strftime('%A, %b')} {d.day}" for d in daily.index]
+        daily.index = [d.strftime("%A, %b %d").replace(" 0", " ") for d in daily.index]
         daily.columns = [
             f"Min ({temp_unit()})", f"Max ({temp_unit()})",
             "Humidity (%)", "Rain Chance (%)", "Wind (m/s)", "Condition",
@@ -523,11 +730,14 @@ if global_weather:
 
     def _rank_html(items: list, value_fn, color: str) -> str:
         html = ""
-        for city, data in items:
+        medals = ["🥇", "🥈", "🥉"]
+        for idx, (city, data) in enumerate(items):
             val = value_fn(data)
+            medal = medals[idx] if idx < len(medals) else "•"
+            classes = "rank-item rank-podium" if idx < 3 else "rank-item"
             html += (
-                f'<div class="rank-item">'
-                f'<span class="ri-city">{city}</span>'
+                f'<div class="{classes}">'
+                f'<span class="ri-city"><span class="ri-badge">{medal}</span>{city}</span>'
                 f'<span class="ri-val" style="color:{color}">{val}</span>'
                 f'</div>'
             )
